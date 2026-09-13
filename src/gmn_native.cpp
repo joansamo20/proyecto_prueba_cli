@@ -176,54 +176,73 @@ bool GMNNativeBridge::find_navigation_buttons(FileDialog *dialog, Button *&back,
 }
 
 void GMNNativeBridge::handle_button(int button) {
-	if (complete) {
-		log_event("repeated_interaction", "checkpoint_already_reached");
-		return;
-	}
+	// The experiment checkpoint freezes telemetry only. Navigation must remain
+	// functional for the lifetime of the editor/plugin after evidence is sufficient.
+	const bool telemetry_active = !complete;
 
-	input_received = true;
-	if (button == 1) {
-		m4_count++;
-		log_event("input_received", "button=XBUTTON1;direction=BACK");
-	} else {
-		m5_count++;
-		log_event("input_received", "button=XBUTTON2;direction=FORWARD");
+	if (telemetry_active) {
+		input_received = true;
+		if (button == 1) {
+			m4_count++;
+			log_event("input_received", "button=XBUTTON1;direction=BACK");
+		} else {
+			m5_count++;
+			log_event("input_received", "button=XBUTTON2;direction=FORWARD");
+		}
 	}
 
 	SceneTree *tree = get_tree();
 	if (tree == nullptr || tree->get_root() == nullptr) {
-		fail("target_found", "SceneTree/root unavailable");
+		if (telemetry_active) {
+			fail("target_found", "SceneTree/root unavailable");
+		}
 		return;
 	}
 
 	FileDialog *dialog = find_visible_editor_file_dialog(tree->get_root());
 	if (dialog == nullptr) {
-		target_found = false;
-		log_event("target_found", "false;reason=no_visible_EditorFileDialog");
+		if (telemetry_active) {
+			target_found = false;
+			log_event("target_found", "false;reason=no_visible_EditorFileDialog");
+		}
 		return;
 	}
 
 	Button *back_button = nullptr;
 	Button *forward_button = nullptr;
 	if (!find_navigation_buttons(dialog, back_button, forward_button)) {
-		target_found = false;
-		fail("target_found", "visible EditorFileDialog found but Back/Forward buttons were not resolved");
+		if (telemetry_active) {
+			target_found = false;
+			fail("target_found", "visible EditorFileDialog found but Back/Forward buttons were not resolved");
+		}
 		return;
 	}
 
-	target_found = true;
-	log_event("target_found", "true;class=EditorFileDialog");
+	if (telemetry_active) {
+		target_found = true;
+		log_event("target_found", "true;class=EditorFileDialog");
+	}
 
 	Button *target = button == 1 ? back_button : forward_button;
 	const String direction = button == 1 ? "BACK" : "FORWARD";
-	last_before_dir = dialog->get_current_dir();
+	const String before_dir = dialog->get_current_dir();
 
-	action_invoked = true;
-	log_event("action_invoked", "direction=" + direction + ";before=" + last_before_dir);
+	if (telemetry_active) {
+		last_before_dir = before_dir;
+		action_invoked = true;
+		log_event("action_invoked", "direction=" + direction + ";before=" + last_before_dir);
+	}
+
 	target->emit_signal(StringName("pressed"));
 
-	last_after_dir = dialog->get_current_dir();
-	const bool changed = last_before_dir != last_after_dir;
+	const String after_dir = dialog->get_current_dir();
+	const bool changed = before_dir != after_dir;
+
+	if (!telemetry_active) {
+		return;
+	}
+
+	last_after_dir = after_dir;
 	effect_observed = changed;
 	log_event("effect_observed", "direction=" + direction + ";changed=" + String(changed ? "true" : "false") + ";after=" + last_after_dir);
 
@@ -240,8 +259,8 @@ void GMNNativeBridge::handle_button(int button) {
 	if (m4_success && m5_success) {
 		complete = true;
 		last_checkpoint = "GMN-NATIVE-001_EVIDENCE_SUFFICIENT";
-		log_event("checkpoint_reached", "one_valid_back_plus_one_valid_forward");
-		UtilityFunctions::print("GMN-NATIVE-001 LISTO | EVIDENCIA SUFICIENTE | reporte listo para copiar");
+		log_event("checkpoint_reached", "one_valid_back_plus_one_valid_forward;telemetry_frozen_navigation_continues");
+		UtilityFunctions::print("GMN-NATIVE-001 LISTO | EVIDENCIA SUFICIENTE | navegación sigue activa");
 	}
 }
 
@@ -269,9 +288,9 @@ String GMNNativeBridge::get_report() const {
 	String out;
 	out += "REPORT_SCHEMA | AP_LOOP_V2_REPORT_1\n";
 	out += "PROJECT_ID | GODOT_MOUSE_NAV_WIN\n";
-	out += "APP_VERSION | GMN_NATIVE_0.1.0\n";
+	out += "APP_VERSION | GMN_NATIVE_0.1.1\n";
 	out += "EXPERIMENT_ID | GMN-NATIVE-001\n";
-	out += "VARIANT_ID | GDEXT-WIN64-001A\n";
+	out += "VARIANT_ID | GDEXT-WIN64-001B\n";
 	out += "MODE | EXECUTION\n\n";
 	out += "OBJECTIVE\n";
 	out += "input_received | " + String(input_received ? "true" : "false") + "\n";
@@ -284,7 +303,8 @@ String GMNNativeBridge::get_report() const {
 	out += "METRICS\n";
 	out += "xbutton1_count | " + String::num_int64(m4_count) + "\n";
 	out += "xbutton2_count | " + String::num_int64(m5_count) + "\n";
-	out += "evidence_sufficient | " + String(complete ? "true" : "false") + "\n\n";
+	out += "evidence_sufficient | " + String(complete ? "true" : "false") + "\n";
+	out += "navigation_continues_after_checkpoint | true\n\n";
 	out += "CHECKPOINTS\nlast_checkpoint | " + last_checkpoint + "\n\n";
 	out += "ERRORS\n" + last_error + "\n\n";
 	out += "FINAL_STATE\n" + String(complete ? "COMPLETED" : (last_error == "none" ? "INCOMPLETE" : "FAILED")) + "\n\n";
@@ -292,16 +312,16 @@ String GMNNativeBridge::get_report() const {
 	out += "runtime | Godot GDExtension / Windows x64\n";
 	out += "before_dir | " + last_before_dir + "\n";
 	out += "after_dir | " + last_after_dir + "\n\n";
-	out += "INTERPRETATION_REQUEST\nInterpret only the earliest failed pipeline stage: input_received -> target_found -> action_invoked -> effect_observed.\n";
+	out += "INTERPRETATION_REQUEST\nInterpret only the earliest failed pipeline stage: input_received -> target_found -> action_invoked -> effect_observed. The checkpoint must not disable navigation.\n";
 	return out;
 }
 
 String GMNNativeBridge::get_diagnostic() const {
 	String out;
 	out += "PROJECT_ID | GODOT_MOUSE_NAV_WIN\n";
-	out += "APP_VERSION | GMN_NATIVE_0.1.0\n";
+	out += "APP_VERSION | GMN_NATIVE_0.1.1\n";
 	out += "EXPERIMENT_ID | GMN-NATIVE-001\n";
-	out += "VARIANT_ID | GDEXT-WIN64-001A\n";
+	out += "VARIANT_ID | GDEXT-WIN64-001B\n";
 	out += "PHASE | runtime\n";
 	out += "RUNTIME | GDExtension Windows x64\n";
 	out += "READY | " + String(ready ? "true" : "false") + "\n";
@@ -311,6 +331,7 @@ String GMNNativeBridge::get_diagnostic() const {
 	out += "TARGET_FOUND | " + String(target_found ? "true" : "false") + "\n";
 	out += "ACTION_INVOKED | " + String(action_invoked ? "true" : "false") + "\n";
 	out += "EFFECT_OBSERVED | " + String(effect_observed ? "true" : "false") + "\n";
+	out += "NAVIGATION_CONTINUES_AFTER_CHECKPOINT | true\n";
 	out += "INTERPRETATION_REQUEST | Diagnose the earliest failed pipeline stage only.\n";
 	return out;
 }
