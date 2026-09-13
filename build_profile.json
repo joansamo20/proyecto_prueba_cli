@@ -5,6 +5,7 @@
     "Window",
     "FileDialog",
     "VBoxContainer",
-    "Button"
+    "Button",
+    "OS"
   ]
 }
