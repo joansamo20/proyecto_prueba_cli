@@ -1,0 +1,11 @@
+{
+  "enabled_classes": [
+    "Node",
+    "SceneTree",
+    "Window",
+    "FileDialog",
+    "VBoxContainer",
+    "Button",
+    "OS"
+  ]
+}

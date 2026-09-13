@@ -1,0 +1,42 @@
+name: build-gmn-native-001
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch godot-cpp
+        shell: pwsh
+        run: git clone --depth 1 https://github.com/godotengine/godot-cpp.git godot-cpp
+
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release --target gmn_native --parallel 2
+
+      - name: Package addon
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package/addons/gmn_native/bin | Out-Null
+          Copy-Item addon/plugin.cfg package/addons/gmn_native/plugin.cfg
+          Copy-Item addon/plugin.gd package/addons/gmn_native/plugin.gd
+          Copy-Item addon/bin/gmn_native.gdextension package/addons/gmn_native/bin/gmn_native.gdextension
+          Copy-Item build/out/gmn_native.dll package/addons/gmn_native/bin/gmn_native.dll
+          Compress-Archive -Path package/addons -DestinationPath GMN_NATIVE_001.zip -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GMN_NATIVE_001
+          path: GMN_NATIVE_001.zip
+          if-no-files-found: error
