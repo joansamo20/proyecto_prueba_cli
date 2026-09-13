@@ -259,7 +259,8 @@ void GMNNativeBridge::fail(const String &phase, const String &message) {
 String GMNNativeBridge::timeline_text() const {
 	String out;
 	for (int i = 0; i < events.size(); i++) {
-		out += events[i] + "\n";
+		out += events[i];
+		out += "\n";
 	}
 	return out;
 }
