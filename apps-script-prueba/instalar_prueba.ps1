@@ -5,7 +5,7 @@
 
 $ErrorActionPreference = 'Continue'
 $Script:Root = Join-Path $env:USERPROFILE 'Documents\PE3\AppsScriptPrueba'
-$Script:Base = 'https://raw.githubusercontent.com/joansamo20/proyecto_prueba_cli/experimento/apps-script-pe3/apps-script-prueba'
+$Script:Base = 'https://raw.githubusercontent.com/joansamo20/proyecto_prueba_cli/deefe3a4c675a97fa1e012a3dfb42b1c2dc12f2c/apps-script-prueba'
 $Script:Clasp = $null
 $Script:Reporte = @{
   Fecha = (Get-Date).ToString('o')
