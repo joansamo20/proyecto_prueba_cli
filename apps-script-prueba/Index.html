@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {color-scheme: light;}
+    body {margin:0;background:#f4f6f8;color:#1f2937;font:16px system-ui,-apple-system,Segoe UI,sans-serif;}
+    main {max-width:560px;margin:6vh auto;padding:26px;background:white;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 8px 28px #10182811;}
+    .tag {display:inline-block;font-size:12px;background:#eef2ff;color:#3730a3;padding:5px 9px;border-radius:30px;font-weight:650;letter-spacing:.04em}
+    h1 {font-size:26px;line-height:1.15;margin:18px 0 8px}
+    p {line-height:1.5;color:#52606d}
+    .row {padding:13px 0;border-top:1px solid #eef0f4;display:flex;justify-content:space-between;gap:16px}
+    .row strong {text-align:right}
+    button {margin-top:14px;background:#212a3d;color:white;border:0;padding:14px 18px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;width:100%}
+    button:disabled {opacity:.6;cursor:wait}
+    pre {white-space:pre-wrap;word-break:break-word;padding:14px;background:#f6f8fb;border-radius:10px;min-height:45px;font-size:13px;line-height:1.45}
+    small {display:block;color:#64748b;margin-top:16px}
+  </style>
+</head>
+<body>
+ <main>
+  <span class="tag">PE3 / 012 · PRUEBA TÉCNICA</span>
+  <h1>Agenda médica — prueba de conexión</h1>
+  <p>Esta interfaz se sirve desde <strong>Google Apps Script</strong>. No contiene pacientes ni realiza cobros reales.</p>
+  <div class="row"><span>Duración proyectada</span><strong>45 minutos</strong></div>
+  <div class="row"><span>Integración con agenda</span><strong>Pendiente</strong></div>
+  <div class="row"><span>Integración de pagos</span><strong>Pendiente</strong></div>
+  <button id="probar" onclick="verificar()">Comprobar conexión con Apps Script</button>
+  <pre id="resultado" aria-live="polite">Interfaz cargada. Presiona el botón para probar el servidor.</pre>
+  <small>El resultado 0 confirma la ejecución de una función del servidor, no la integración con Calendar ni Flow.</small>
+ </main>
+ <script>
+ function prepararSolicitud() {
+   const boton = document.getElementById('probar');
+   const salida = document.getElementById('resultado');
+   if (!boton || !salida) {
+     return {EstadoEjecucion012: 2, Dato:{EstadoFuncional:'ElementosNoDisponibles'}};
+   }
+   return {EstadoEjecucion012: 0, Dato:{boton:boton,salida:salida}};
+ }
+ function verificar() {
+   const r = prepararSolicitud();
+   switch (r.EstadoEjecucion012) {
+     case 0:
+       r.Dato.boton.disabled = true;
+       r.Dato.salida.textContent = 'Verificando el servidor...';
+       google.script.run.withSuccessHandler(mostrarRespuesta).withFailureHandler(mostrarError).probarServidor();
+       return {EstadoEjecucion012:0,Dato:{EstadoFuncional:'SolicitudEnviada'}};
+     case 1:
+       return {EstadoEjecucion012:1,Dato:{EstadoFuncional:'SolicitudIndeterminada'}};
+     case 2:
+       return {EstadoEjecucion012:2,Dato:{EstadoFuncional:'SolicitudNoIniciada'}};
+     default:
+       return {EstadoEjecucion012:2,Dato:{EstadoFuncional:'EstadoInvalido'}};
+   }
+ }
+ function mostrarRespuesta(resultado) {
+   const r = prepararSolicitud();
+   switch (r.EstadoEjecucion012) {
+     case 0:
+       r.Dato.boton.disabled = false;
+       if (!resultado || typeof resultado.EstadoEjecucion012 !== 'number') {
+         r.Dato.salida.textContent = '1 — Respuesta sin estado verificable';
+         return {EstadoEjecucion012:1,Dato:{EstadoFuncional:'RespuestaIncompleta'}};
+       }
+       switch (resultado.EstadoEjecucion012) {
+         case 0:
+           r.Dato.salida.textContent = '0 — CONEXIÓN CORRECTA\n' + JSON.stringify(resultado.Dato,null,2);
+           return {EstadoEjecucion012:0,Dato:resultado.Dato};
+         case 1:
+           r.Dato.salida.textContent = '1 — RESULTADO INDETERMINADO\n' + JSON.stringify(resultado.Dato,null,2);
+           return {EstadoEjecucion012:1,Dato:resultado.Dato};
+         case 2:
+           r.Dato.salida.textContent = '2 — FALLO\n' + JSON.stringify(resultado.Dato,null,2);
+           return {EstadoEjecucion012:2,Dato:resultado.Dato};
+         default:
+           r.Dato.salida.textContent = '2 — Estado desconocido';
+           return {EstadoEjecucion012:2,Dato:{EstadoFuncional:'EstadoInvalido'}};
+       }
+     case 1:
+       return {EstadoEjecucion012:1,Dato:{EstadoFuncional:'VistaIndeterminada'}};
+     case 2:
+       return {EstadoEjecucion012:2,Dato:{EstadoFuncional:'VistaNoDisponible'}};
+     default:
+       return {EstadoEjecucion012:2,Dato:{EstadoFuncional:'EstadoInvalido'}};
+   }
+ }
+ function mostrarError(error) {
+   const r = prepararSolicitud();
+   switch (r.EstadoEjecucion012) {
+     case 0:
+       r.Dato.boton.disabled = false;
+       r.Dato.salida.textContent = '2 — ERROR DEL SERVIDOR\n' + (error && error.message ? error.message : 'Sin detalles');
+       return {EstadoEjecucion012:2,Dato:{EstadoFuncional:'LlamadaFallida'}};
+     case 1:
+       return {EstadoEjecucion012:1,Dato:{EstadoFuncional:'ErrorNoMostrable'}};
+     case 2:
+       return {EstadoEjecucion012:2,Dato:{EstadoFuncional:'VistaNoDisponible'}};
+     default:
+       return {EstadoEjecucion012:2,Dato:{EstadoFuncional:'EstadoInvalido'}};
+   }
+ }
+ </script>
+</body>
+</html>
